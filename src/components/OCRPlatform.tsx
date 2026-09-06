@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { UploadCloud, FileText, CheckCircle, Loader2, Download, RefreshCcw } from 'lucide-react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { UploadCloud, FileText, CheckCircle, Loader2, Download, RefreshCcw, Moon, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as pdfjsLib from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
@@ -9,6 +9,70 @@ import { cn } from '../lib/utils';
 // Configure the PDF.js worker using a reliable CDN approach.
 // This is required to decode PDFs in the browser.
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+function InteractiveEffects() {
+  const cursorRef = useRef<HTMLDivElement>(null);
+  const spotlightRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    let cursorX = mouseX;
+    let cursorY = mouseY;
+    let spotX = mouseX;
+    let spotY = mouseY;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+
+    let animationFrameId: number;
+    const animate = () => {
+      cursorX += (mouseX - cursorX) * 0.15;
+      cursorY += (mouseY - cursorY) * 0.15;
+      spotX += (mouseX - spotX) * 0.05;
+      spotY += (mouseY - spotY) * 0.05;
+
+      if (cursorRef.current) {
+        cursorRef.current.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`;
+      }
+      if (spotlightRef.current) {
+        spotlightRef.current.style.transform = `translate3d(${spotX}px, ${spotY}px, 0)`;
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return (
+    <>
+      <div 
+        ref={spotlightRef}
+        className="fixed top-0 left-0 w-[600px] h-[600px] -ml-[300px] -mt-[300px] pointer-events-none z-0 mix-blend-multiply dark:mix-blend-screen"
+        style={{
+          background: 'radial-gradient(circle, rgba(255,95,31,0.12) 0%, transparent 60%)',
+          filter: 'blur(60px)'
+        }}
+      />
+      <div 
+        ref={cursorRef}
+        className="fixed top-0 left-0 w-10 h-10 -ml-5 -mt-5 pointer-events-none z-[100] flex items-center justify-center rounded-full border border-[#FF5F1F]/40 transition-opacity duration-300 hidden md:flex"
+      >
+        <div className="w-1.5 h-1.5 bg-[#FF5F1F] rounded-full" />
+      </div>
+    </>
+  );
+}
 
 type ProcessStatus = 'idle' | 'processing' | 'done' | 'error';
 
@@ -20,10 +84,19 @@ export default function OCRPlatform() {
   const [fileName, setFileName] = useState<string>('');
   const [outFileName, setOutFileName] = useState<string>('');
   const [downloadFormat, setDownloadFormat] = useState<'pdf' | 'md' | 'txt' | 'html'>('pdf');
+  const [isDark, setIsDark] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const numPagesRef = useRef(1);
   const currentPageRef = useRef(1);
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
 
   const handleFileSelect = useCallback(async (file: File) => {
     if (file.type !== 'application/pdf') {
@@ -171,20 +244,30 @@ export default function OCRPlatform() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F2F1EE] text-[#121212] font-sans selection:bg-[#FF5F1F]/20 p-6 md:p-12 relative overflow-hidden flex flex-col box-border">
-      <div className="absolute -bottom-24 -left-24 w-64 h-64 border border-black/5 rounded-full pointer-events-none"></div>
-      <div className="absolute -top-12 -right-12 w-48 h-48 bg-[#FF5F1F]/5 rounded-full pointer-events-none"></div>
+    <div className="min-h-screen bg-[#F2F1EE] text-[#121212] dark:bg-[#0a0a0a] dark:text-[#F2F1EE] font-sans selection:bg-[#FF5F1F]/20 p-6 md:p-12 relative overflow-hidden flex flex-col box-border transition-colors duration-500">
+      <InteractiveEffects />
+      <div className="absolute -bottom-24 -left-24 w-64 h-64 border border-black/5 dark:border-white/5 rounded-full pointer-events-none"></div>
+      <div className="absolute -top-12 -right-12 w-48 h-48 bg-[#FF5F1F]/5 dark:bg-[#FF5F1F]/10 rounded-full pointer-events-none"></div>
 
       <nav className="flex justify-between items-start z-10 relative mb-12 max-w-7xl mx-auto w-full">
         <div className="flex flex-col">
           <span className="font-black tracking-tighter text-2xl">DOCUSCAN.OCR</span>
           <span className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-40">Tesseract 5.0 Core</span>
         </div>
-        <div className="flex gap-12 text-[10px] uppercase tracking-[0.2em] font-bold">
-          <a href="https://github.com/tesseract-ocr/tesseract" target="_blank" rel="noopener noreferrer" className="hover:opacity-50 hidden sm:block">Source</a>
-          <a href="https://tesseract.projectnaptha.com/" target="_blank" rel="noopener noreferrer" className="hover:opacity-50 hidden sm:block">API</a>
-          <a href="https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="hover:opacity-50 hidden sm:block">Privacy</a>
-          <div className="w-2 h-2 bg-[#FF5F1F] rounded-full mt-1"></div>
+        <div className="flex items-center gap-8 md:gap-12 text-[10px] uppercase tracking-[0.2em] font-bold">
+          <div className="hidden sm:flex gap-12 items-center">
+            <a href="https://github.com/tesseract-ocr/tesseract" target="_blank" rel="noopener noreferrer" className="hover:opacity-50">Source</a>
+            <a href="https://tesseract.projectnaptha.com/" target="_blank" rel="noopener noreferrer" className="hover:opacity-50">API</a>
+            <a href="https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="hover:opacity-50">Privacy</a>
+          </div>
+          <button 
+            onClick={() => setIsDark(!isDark)} 
+            className="p-2 -mr-2 hover:opacity-50 transition-opacity bg-black/5 dark:bg-white/10 rounded-full cursor-pointer"
+            aria-label="Toggle Dark Mode"
+          >
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+          <div className="w-2 h-2 bg-[#FF5F1F] rounded-full hidden sm:block"></div>
         </div>
       </nav>
 
@@ -199,10 +282,10 @@ export default function OCRPlatform() {
             Transform static documents into dynamic, searchable intelligence. Open-source, secure, and precise processing entirely in your browser.
           </p>
           <div className="flex gap-4">
-            <div onClick={() => window.open('https://tesseract.projectnaptha.com/', '_blank')} className="px-6 py-3 border border-black rounded-full text-xs font-bold uppercase tracking-widest hover:bg-black hover:text-white cursor-pointer transition-colors">
+            <div onClick={() => window.open('https://tesseract.projectnaptha.com/', '_blank')} className="px-6 py-3 border border-black dark:border-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black cursor-pointer transition-colors z-10">
               Documentation
             </div>
-            <div onClick={() => window.open('https://github.com/tesseract-ocr/tesseract', '_blank')} className="px-6 py-3 bg-black text-white rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-80 cursor-pointer transition-opacity">
+            <div onClick={() => window.open('https://github.com/tesseract-ocr/tesseract', '_blank')} className="px-6 py-3 bg-black text-white dark:bg-white dark:text-black rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-80 cursor-pointer transition-opacity z-10">
               View GitHub
             </div>
           </div>
@@ -222,7 +305,7 @@ export default function OCRPlatform() {
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-[60px] border-2 border-dashed border-black/10 bg-white/40 flex flex-col items-center justify-center p-12 text-center group cursor-pointer hover:bg-white/80 transition-all"
+                  className="aspect-square rounded-[60px] border-2 border-dashed border-black/10 dark:border-white/10 bg-white/40 dark:bg-white/5 flex flex-col items-center justify-center p-12 text-center group cursor-pointer hover:bg-white/80 dark:hover:bg-white/10 transition-all z-10 backdrop-blur-sm"
                 >
                   <input
                     type="file"
@@ -233,14 +316,14 @@ export default function OCRPlatform() {
                       if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
                     }}
                   />
-                  <div className="w-24 h-24 rounded-full border border-black flex items-center justify-center mb-8 bg-white group-hover:scale-110 transition-transform shadow-sm">
-                    <UploadCloud className="w-8 h-8 text-[#121212]" strokeWidth={1.5} />
+                  <div className="w-24 h-24 rounded-full border border-black dark:border-white flex items-center justify-center mb-8 bg-white dark:bg-[#0a0a0a] group-hover:scale-110 transition-transform shadow-sm">
+                    <UploadCloud className="w-8 h-8 text-[#121212] dark:text-[#F2F1EE]" strokeWidth={1.5} />
                   </div>
                   <h3 className="text-xl font-bold mb-2">Drop your PDF here</h3>
                   <p className="text-sm opacity-40 font-medium">Drag and drop or click to browse files</p>
                   
                   <div className="mt-8 flex gap-2">
-                    <div className="px-3 py-1 bg-black/5 rounded text-[10px] font-mono">PDF</div>
+                    <div className="px-3 py-1 bg-black/5 dark:bg-white/10 rounded text-[10px] font-mono">PDF</div>
                   </div>
                 </div>
               </motion.div>
@@ -254,7 +337,7 @@ export default function OCRPlatform() {
                 exit={{ opacity: 0, scale: 1.05 }}
                 className="p-16 flex flex-col items-center text-center"
               >
-                <div className="bg-white rounded-[40px] p-8 border border-black/5 shadow-sm w-full h-full flex flex-col justify-center items-center aspect-square">
+                <div className="bg-white dark:bg-[#111] rounded-[40px] p-8 border border-black/5 dark:border-white/10 shadow-sm w-full h-full flex flex-col justify-center items-center aspect-square z-10 backdrop-blur-sm">
                   <div className="flex justify-between items-center mb-12 w-full">
                     <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Queue Status</span>
                     <span className="flex items-center gap-2 text-[10px] font-bold text-[#FF5F1F]">
@@ -263,9 +346,9 @@ export default function OCRPlatform() {
                   </div>
                   
                   <div className="relative mb-8">
-                    <div className="w-24 h-24 border-2 border-dashed border-black/20 rounded-full"></div>
+                    <div className="w-24 h-24 border-2 border-dashed border-black/20 dark:border-white/20 rounded-full"></div>
                     <motion.div 
-                      className="w-24 h-24 border-2 border-black rounded-full absolute top-0 left-0 border-t-transparent border-l-transparent border-r-transparent"
+                      className="w-24 h-24 border-2 border-black dark:border-white rounded-full absolute top-0 left-0 border-t-transparent border-l-transparent border-r-transparent"
                       animate={{ rotate: 360 }}
                       transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
                     />
@@ -275,11 +358,11 @@ export default function OCRPlatform() {
                   </div>
                   
                   <h3 className="text-xl font-bold mb-2 text-center">{progressMsg}</h3>
-                  <div className="w-full bg-black/5 rounded-full h-1 mt-6 overflow-hidden max-w-[200px]">
+                  <div className="w-full bg-black/5 dark:bg-white/10 rounded-full h-1 mt-6 overflow-hidden max-w-[200px]">
                     <div className="bg-[#FF5F1F] h-full transition-all duration-300" style={{ width: `${progressPct}%` }}></div>
                   </div>
                   <div className="flex items-center gap-3 opacity-60 mt-6">
-                     <div className="w-8 h-8 bg-[#F2F1EE] rounded flex items-center justify-center text-[10px] font-bold">01</div>
+                     <div className="w-8 h-8 bg-[#F2F1EE] dark:bg-white/10 rounded flex items-center justify-center text-[10px] font-bold">01</div>
                      <div className="text-xs">
                         <div className="font-bold truncate max-w-[200px]">{fileName}</div>
                      </div>
@@ -294,16 +377,16 @@ export default function OCRPlatform() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-[40px] p-8 border border-red-500/20 shadow-sm w-full aspect-square flex flex-col items-center justify-center text-center"
+                className="bg-white dark:bg-[#111] rounded-[40px] p-8 border border-red-500/20 shadow-sm w-full aspect-square flex flex-col items-center justify-center text-center z-10 backdrop-blur-sm"
               >
-                <div className="w-24 h-24 rounded-full border border-red-500 flex items-center justify-center mb-8 bg-red-50">
+                <div className="w-24 h-24 rounded-full border border-red-500 flex items-center justify-center mb-8 bg-red-50 dark:bg-red-500/10">
                   <span className="text-[#FF5F1F] text-4xl font-black">!</span>
                 </div>
                 <h3 className="text-xl font-bold mb-2">Something went wrong</h3>
                 <p className="text-sm opacity-60 mb-8 max-w-xs">{progressMsg}</p>
                 <button
                   onClick={reset}
-                  className="px-6 py-3 bg-black text-white rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                  className="px-6 py-3 bg-black text-white dark:bg-white dark:text-black rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-80 transition-opacity z-10"
                 >
                   Try Again
                 </button>
@@ -315,23 +398,23 @@ export default function OCRPlatform() {
                 key="done"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-[40px] p-6 md:p-8 border border-black/5 shadow-sm flex flex-col h-[600px]"
+                className="bg-white dark:bg-[#111] rounded-[40px] p-6 md:p-8 border border-black/5 dark:border-white/10 shadow-sm flex flex-col h-[600px] z-10 backdrop-blur-sm"
               >
                 <div className="flex justify-between items-center mb-6">
                   <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Result</span>
                   <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-2 text-[10px] font-bold text-green-600">
-                      <span className="w-1.5 h-1.5 bg-green-600 rounded-full"></span> Done
+                    <span className="flex items-center gap-2 text-[10px] font-bold text-green-600 dark:text-green-400">
+                      <span className="w-1.5 h-1.5 bg-green-600 dark:bg-green-400 rounded-full"></span> Done
                     </span>
-                    <button onClick={reset} className="text-[10px] font-bold border-b border-black hover:opacity-50 uppercase tracking-widest">
+                    <button onClick={reset} className="text-[10px] font-bold border-b border-black dark:border-white hover:opacity-50 uppercase tracking-widest cursor-pointer">
                       New
                     </button>
                   </div>
                 </div>
                 
-                <div className="flex items-center justify-between mb-6 pb-6 border-b border-black/10 flex-col sm:flex-row gap-4 sm:gap-0">
+                <div className="flex items-center justify-between mb-6 pb-6 border-b border-black/10 dark:border-white/10 flex-col sm:flex-row gap-4 sm:gap-0">
                   <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="w-8 h-8 bg-[#F2F1EE] rounded flex items-center justify-center text-[10px] font-bold">01</div>
+                    <div className="w-8 h-8 bg-[#F2F1EE] dark:bg-white/10 rounded flex items-center justify-center text-[10px] font-bold">01</div>
                     <div className="text-xs">
                       <div className="font-bold truncate max-w-[150px] sm:max-w-[200px]">{fileName}</div>
                       <div className="opacity-40 text-[9px]">OCR Completed</div>
@@ -339,23 +422,23 @@ export default function OCRPlatform() {
                   </div>
                   
                   <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-                    <div className="flex bg-[#F2F1EE] rounded border border-black/10 overflow-hidden">
+                    <div className="flex bg-[#F2F1EE] dark:bg-[#0a0a0a] rounded border border-black/10 dark:border-white/10 overflow-hidden">
                       <input 
                         type="text" 
                         value={outFileName} 
                         onChange={(e) => setOutFileName(e.target.value)}
-                        className="bg-transparent px-3 py-1.5 text-xs font-bold outline-none w-32 sm:w-48 text-[#121212]"
+                        className="bg-transparent px-3 py-1.5 text-xs font-bold outline-none w-32 sm:w-48 text-[#121212] dark:text-[#F2F1EE]"
                         placeholder="Filename"
                       />
                       <select 
                         value={downloadFormat}
                         onChange={(e) => setDownloadFormat(e.target.value as any)}
-                        className="bg-black/5 px-2 py-1.5 text-xs font-bold outline-none border-l border-black/10 text-[#121212] cursor-pointer"
+                        className="bg-black/5 dark:bg-white/10 px-2 py-1.5 text-xs font-bold outline-none border-l border-black/10 dark:border-white/10 text-[#121212] dark:text-[#F2F1EE] cursor-pointer"
                       >
-                        <option value="pdf">.PDF</option>
-                        <option value="md">.MD</option>
-                        <option value="txt">.TXT</option>
-                        <option value="html">.HTML</option>
+                        <option value="pdf" className="dark:bg-[#111]">.PDF</option>
+                        <option value="md" className="dark:bg-[#111]">.MD</option>
+                        <option value="txt" className="dark:bg-[#111]">.TXT</option>
+                        <option value="html" className="dark:bg-[#111]">.HTML</option>
                       </select>
                     </div>
                     <button onClick={handleDownload} className="text-[10px] font-bold border-b border-[#FF5F1F] text-[#FF5F1F] cursor-pointer hover:opacity-50">
@@ -369,12 +452,12 @@ export default function OCRPlatform() {
                   <textarea
                     readOnly
                     value={extractedText}
-                    className="w-full h-full p-4 bg-[#F2F1EE]/50 border border-black/5 rounded-2xl resize-none focus:outline-none focus:ring-1 focus:ring-black/10 font-mono text-[11px] sm:text-xs leading-relaxed text-[#121212]"
+                    className="w-full h-full p-4 bg-[#F2F1EE]/50 dark:bg-[#0a0a0a]/50 border border-black/5 dark:border-white/5 rounded-2xl resize-none focus:outline-none focus:ring-1 focus:ring-black/10 dark:focus:ring-white/10 font-mono text-[11px] sm:text-xs leading-relaxed text-[#121212] dark:text-[#F2F1EE]"
                   />
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button 
                       onClick={() => navigator.clipboard.writeText(extractedText)}
-                      className="px-3 py-1.5 bg-black text-white rounded text-[10px] font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                      className="px-3 py-1.5 bg-black text-white dark:bg-white dark:text-black rounded text-[10px] font-bold uppercase tracking-widest hover:opacity-80 transition-opacity shadow-sm cursor-pointer"
                     >
                       Copy
                     </button>
@@ -386,7 +469,7 @@ export default function OCRPlatform() {
         </main>
       </div>
 
-      <footer className="flex justify-between items-end pt-8 border-t border-black/5 relative z-10 max-w-7xl mx-auto w-full mt-auto">
+      <footer className="flex justify-between items-end pt-8 border-t border-black/5 dark:border-white/5 relative z-10 max-w-7xl mx-auto w-full mt-auto">
         <div className="hidden md:flex gap-12">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Accuracy</span>
