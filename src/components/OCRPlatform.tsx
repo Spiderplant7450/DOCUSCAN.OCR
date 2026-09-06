@@ -113,7 +113,7 @@ export default function OCRPlatform() {
     setProgressPct(0);
     setExtractedText('');
 
-    let worker: Tesseract.Worker | null = null;
+    let scheduler: Tesseract.Scheduler | null = null;
 
     try {
       // 1. Read PDF
@@ -121,30 +121,26 @@ export default function OCRPlatform() {
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const numPages = pdf.numPages;
       numPagesRef.current = numPages;
-      let fullText = '';
 
-      // 2. Initialize Tesseract Worker once
-      setProgressMsg('Warming up OCR engine...');
-      worker = await Tesseract.createWorker('eng', 1, {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            const currentPage = currentPageRef.current;
-            const totalPages = numPagesRef.current;
-            const baseProgress = ((currentPage - 1) / totalPages) * 100;
-            const currentProgress = (m.progress * 100) / totalPages;
-            setProgressPct(Math.min(100, Math.round(baseProgress + currentProgress)));
-          }
-        },
-      });
+      // 2. Initialize Tesseract Scheduler and Workers
+      const numWorkers = Math.min(4, navigator.hardwareConcurrency || 4);
+      setProgressMsg(`Warming up ${numWorkers} parallel OCR engines...`);
+      setProgressPct(0);
+      
+      scheduler = Tesseract.createScheduler();
+      for (let i = 0; i < numWorkers; i++) {
+        const worker = await Tesseract.createWorker('eng', 1);
+        scheduler.addWorker(worker);
+      }
 
-      // 3. Process each page
-      for (let i = 1; i <= numPages; i++) {
-        currentPageRef.current = i;
-        setProgressMsg(`Rendering page ${i} of ${numPages}...`);
-        
-        const page = await pdf.getPage(i);
-        // Scale 2.0 provides a good balance between OCR accuracy and processing speed.
-        const viewport = page.getViewport({ scale: 2.0 }); 
+      let completedPages = 0;
+      const results: { pageNum: number, text: string }[] = [];
+      const pageQueue = Array.from({ length: numPages }, (_, i) => i + 1);
+
+      const processPage = async (pageNum: number) => {
+        const page = await pdf.getPage(pageNum);
+        // Scale 1.5 provides high speed while maintaining accuracy
+        const viewport = page.getViewport({ scale: 1.5 }); 
         
         const canvas = document.createElement('canvas');
         canvas.width = viewport.width;
@@ -155,12 +151,31 @@ export default function OCRPlatform() {
 
         await page.render({ canvasContext: context, viewport } as any).promise;
         const dataUrl = canvas.toDataURL('image/png');
+        page.cleanup?.();
 
-        setProgressMsg(`Running OCR on page ${i} of ${numPages}...`);
-        const { data: { text } } = await worker.recognize(dataUrl);
+        const { data: { text } } = await scheduler!.addJob('recognize', dataUrl);
         
-        fullText += `\n\n--- Page ${i} ---\n\n${text}`;
-      }
+        completedPages++;
+        setProgressPct(Math.round((completedPages / numPages) * 100));
+        setProgressMsg(`Processed ${completedPages} of ${numPages} pages...`);
+        
+        results.push({ pageNum, text });
+      };
+
+      // 3. Process pages using a concurrent worker pool
+      const workersArray = Array.from({ length: numWorkers }, async () => {
+        while (pageQueue.length > 0) {
+          const pageNum = pageQueue.shift();
+          if (pageNum !== undefined) {
+            await processPage(pageNum);
+          }
+        }
+      });
+
+      await Promise.all(workersArray);
+      
+      results.sort((a, b) => a.pageNum - b.pageNum);
+      const fullText = results.map(r => `\n\n--- Page ${r.pageNum} ---\n\n${r.text}`).join('');
 
       setExtractedText(fullText.trim());
       setStatus('done');
@@ -171,8 +186,8 @@ export default function OCRPlatform() {
       setStatus('error');
       setProgressMsg(err.message || 'An error occurred during processing.');
     } finally {
-      if (worker) {
-        await worker.terminate();
+      if (scheduler) {
+        await scheduler.terminate();
       }
     }
   }, []);

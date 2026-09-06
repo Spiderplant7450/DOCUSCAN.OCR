@@ -26,3 +26,7 @@ body {
   -webkit-text-stroke: 1px #121212;
   color: transparent;
 }
+
+.dark .outline-text {
+  -webkit-text-stroke: 1px #F2F1EE;
+}
