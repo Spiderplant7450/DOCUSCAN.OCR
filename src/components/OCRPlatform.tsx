@@ -74,7 +74,7 @@ function InteractiveEffects() {
   );
 }
 
-type ProcessStatus = 'idle' | 'processing' | 'done' | 'error';
+type ProcessStatus = 'idle' | 'processing' | 'cleaning' | 'done' | 'error';
 
 export default function OCRPlatform() {
   const [status, setStatus] = useState<ProcessStatus>('idle');
@@ -175,9 +175,33 @@ export default function OCRPlatform() {
       await Promise.all(workersArray);
       
       results.sort((a, b) => a.pageNum - b.pageNum);
-      const fullText = results.map(r => `\n\n--- Page ${r.pageNum} ---\n\n${r.text}`).join('');
+      let finalFullText = results.map(r => `\n\n--- Page ${r.pageNum} ---\n\n${r.text}`).join('').trim();
 
-      setExtractedText(fullText.trim());
+      // 4. AI Cleanup Step
+      setStatus('cleaning');
+      setProgressPct(100);
+      setProgressMsg('AI is cleaning up the OCR text...');
+
+      try {
+        const aiResponse = await fetch('/api/clean-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: finalFullText })
+        });
+        
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          if (aiData.cleanedText) {
+            finalFullText = aiData.cleanedText;
+          }
+        } else {
+          console.warn('AI Cleanup failed, falling back to raw text.');
+        }
+      } catch (cleanupError) {
+        console.warn('AI Cleanup failed, falling back to raw text.', cleanupError);
+      }
+
+      setExtractedText(finalFullText);
       setStatus('done');
       setProgressMsg('Processing complete!');
 
@@ -386,6 +410,40 @@ export default function OCRPlatform() {
               </motion.div>
             )}
 
+            {status === 'cleaning' && (
+              <motion.div
+                key="cleaning"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                className="p-16 flex flex-col items-center text-center"
+              >
+                <div className="bg-white dark:bg-[#111] rounded-[40px] p-8 border border-black/5 dark:border-white/10 shadow-sm w-full h-full flex flex-col justify-center items-center aspect-square z-10 backdrop-blur-sm">
+                  <div className="flex justify-between items-center mb-12 w-full">
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-30">AI Processing</span>
+                    <span className="flex items-center gap-2 text-[10px] font-bold text-[#FF5F1F]">
+                      <span className="w-1.5 h-1.5 bg-[#FF5F1F] rounded-full animate-pulse"></span> Gemini Active
+                    </span>
+                  </div>
+                  
+                  <div className="relative mb-8">
+                    <div className="w-24 h-24 border-2 border-dashed border-[#FF5F1F]/20 rounded-full"></div>
+                    <motion.div 
+                      className="w-24 h-24 border-2 border-[#FF5F1F] rounded-full absolute top-0 left-0 border-t-transparent border-l-transparent border-r-transparent"
+                      animate={{ rotate: -360 }}
+                      transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl">✨</span>
+                    </div>
+                  </div>
+                  
+                  <h3 className="text-xl font-bold mb-2 text-center">Refining text quality...</h3>
+                  <p className="text-sm opacity-60">Removing artifacts and fixing OCR errors with AI.</p>
+                </div>
+              </motion.div>
+            )}
+
             {status === 'error' && (
               <motion.div
                 key="error"
@@ -413,42 +471,42 @@ export default function OCRPlatform() {
                 key="done"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-[#111] rounded-[40px] p-6 md:p-8 border border-black/5 dark:border-white/10 shadow-sm flex flex-col h-[600px] z-10 backdrop-blur-sm"
+                className="bg-white dark:bg-[#111] rounded-[40px] p-6 md:p-8 border border-black/5 dark:border-white/10 shadow-sm flex flex-col flex-1 min-h-[500px] h-full z-10 backdrop-blur-sm"
               >
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-6 shrink-0">
                   <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Result</span>
                   <div className="flex items-center gap-4">
                     <span className="flex items-center gap-2 text-[10px] font-bold text-green-600 dark:text-green-400">
                       <span className="w-1.5 h-1.5 bg-green-600 dark:bg-green-400 rounded-full"></span> Done
                     </span>
-                    <button onClick={reset} className="text-[10px] font-bold border-b border-black dark:border-white hover:opacity-50 uppercase tracking-widest cursor-pointer">
+                    <button onClick={reset} className="text-[10px] font-bold border-b border-black dark:border-white hover:opacity-50 uppercase tracking-widest cursor-pointer shrink-0">
                       New
                     </button>
                   </div>
                 </div>
                 
-                <div className="flex items-center justify-between mb-6 pb-6 border-b border-black/10 dark:border-white/10 flex-col sm:flex-row gap-4 sm:gap-0">
+                <div className="flex items-start sm:items-center justify-between mb-6 pb-6 border-b border-black/10 dark:border-white/10 flex-col sm:flex-row gap-4 shrink-0">
                   <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="w-8 h-8 bg-[#F2F1EE] dark:bg-white/10 rounded flex items-center justify-center text-[10px] font-bold">01</div>
-                    <div className="text-xs">
-                      <div className="font-bold truncate max-w-[150px] sm:max-w-[200px]">{fileName}</div>
-                      <div className="opacity-40 text-[9px]">OCR Completed</div>
+                    <div className="w-8 h-8 bg-[#F2F1EE] dark:bg-white/10 rounded flex items-center justify-center text-[10px] font-bold shrink-0">01</div>
+                    <div className="text-xs min-w-0">
+                      <div className="font-bold truncate w-full sm:max-w-[200px]">{fileName}</div>
+                      <div className="opacity-40 text-[9px]">OCR & AI Cleaned</div>
                     </div>
                   </div>
                   
-                  <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-                    <div className="flex bg-[#F2F1EE] dark:bg-[#0a0a0a] rounded border border-black/10 dark:border-white/10 overflow-hidden">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                    <div className="flex bg-[#F2F1EE] dark:bg-[#0a0a0a] rounded border border-black/10 dark:border-white/10 overflow-hidden w-full sm:w-auto">
                       <input 
                         type="text" 
                         value={outFileName} 
                         onChange={(e) => setOutFileName(e.target.value)}
-                        className="bg-transparent px-3 py-1.5 text-xs font-bold outline-none w-32 sm:w-48 text-[#121212] dark:text-[#F2F1EE]"
+                        className="bg-transparent px-3 py-1.5 text-xs font-bold outline-none w-full sm:w-32 md:w-48 text-[#121212] dark:text-[#F2F1EE]"
                         placeholder="Filename"
                       />
                       <select 
                         value={downloadFormat}
                         onChange={(e) => setDownloadFormat(e.target.value as any)}
-                        className="bg-black/5 dark:bg-white/10 px-2 py-1.5 text-xs font-bold outline-none border-l border-black/10 dark:border-white/10 text-[#121212] dark:text-[#F2F1EE] cursor-pointer"
+                        className="bg-black/5 dark:bg-white/10 px-2 py-1.5 text-xs font-bold outline-none border-l border-black/10 dark:border-white/10 text-[#121212] dark:text-[#F2F1EE] cursor-pointer shrink-0"
                       >
                         <option value="pdf" className="dark:bg-[#111]">.PDF</option>
                         <option value="md" className="dark:bg-[#111]">.MD</option>
@@ -456,14 +514,14 @@ export default function OCRPlatform() {
                         <option value="html" className="dark:bg-[#111]">.HTML</option>
                       </select>
                     </div>
-                    <button onClick={handleDownload} className="text-[10px] font-bold border-b border-[#FF5F1F] text-[#FF5F1F] cursor-pointer hover:opacity-50">
+                    <button onClick={handleDownload} className="text-[10px] font-bold border-b border-[#FF5F1F] text-[#FF5F1F] cursor-pointer hover:opacity-50 shrink-0 text-center py-1 sm:py-0">
                       DOWNLOAD
                     </button>
                   </div>
                 </div>
                 
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-2">OCR Result Preview</span>
-                <div className="flex-1 relative group">
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-2 shrink-0">OCR Result Preview</span>
+                <div className="flex-1 min-h-0 relative group">
                   <textarea
                     readOnly
                     value={extractedText}
