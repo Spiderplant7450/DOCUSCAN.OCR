@@ -1,0 +1,8 @@
+{
+  "name": "DocuScan OCR",
+  "description": "A modern, open-source PDF OCR platform powered by Tesseract.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
