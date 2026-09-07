@@ -1,14 +1,15 @@
 # DocuScan OCR
 
-A modern, open-source PDF OCR platform powered by [Tesseract.js](https://tesseract.projectnaptha.com/) and [PDF.js](https://mozilla.github.io/pdf.js/).
+A high-performance, open-source PDF OCR platform powered by [Tesseract.js](https://tesseract.projectnaptha.com/), [PDF.js](https://mozilla.github.io/pdf.js/), and **Google Gemini AI**.
 
 ## Features
 
-- **Local Processing**: All OCR happens entirely in your browser using WebAssembly. No files are uploaded to any server.
-- **Progress Tracking**: Accurate total progress tracking across multiple pages.
-- **Export Formats**: Extract text and download it as PDF (most preferable), Markdown, TXT, or HTML.
-- **Customization**: Rename the output file directly in the app (defaults to `[filename]_searchable`).
-- **Artistic Flair**: Beautiful, modern UI built with Tailwind CSS.
+- **Massive Parallelization**: Utilizes concurrent WebAssembly workers to process up to 10 pages simultaneously, drastically reducing extraction time for large documents.
+- **Gemini AI Cleanup**: Automatically passes extracted text through Gemini (Server-Side) to seamlessly repair OCR typos, remove scanning artifacts, fix broken sentences, and intelligently reconstruct complex layouts (tables, headers, lists) into perfect Markdown.
+- **Side-by-Side Interactive Editor**: A split-screen interface that displays the original PDF document right next to the extracted text, allowing for instant visual reference and manual corrections.
+- **Styled PDF Exports**: Converts the AI-restored Markdown directly into a premium, formatted PDF document natively in the browser (using `marked` and `html2pdf.js`), complete with custom typography and a subtle branded watermark.
+- **Format Flexibility**: Download your extracted data as a formatted PDF, pure Markdown, HTML, or plain TXT.
+- **Modern UI**: A beautiful, fluid interface built with Tailwind CSS and Framer Motion.
 
 ## Development
 
@@ -23,6 +24,13 @@ npm run dev
 npm run build
 ```
 
+## Environment Setup
+Because this application utilizes Google Gemini for intelligent text cleanup, you must provide a valid API key. Create a `.env` file in the root directory and add your key:
+
+```env
+GEMINI_API_KEY=your_google_genai_api_key_here
+```
+
 ## Deploying to GitHub Pages
 
 This repository includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) to automatically deploy the app to GitHub Pages.
@@ -34,4 +42,4 @@ To set it up:
 4. Under **Source**, select **GitHub Actions**.
 5. Once your workflow runs and completes, your site will be live at `https://[your-username].github.io/[repository-name]/`.
 
-*Note: The `vite.config.ts` is configured with `base: './'` which allows the built assets to load correctly regardless of the repository name.*
+*Note: The `vite.config.ts` is configured with `base: './'` which allows the built assets to load correctly regardless of the repository name. However, ensure that your deployment environment supports the server-side API (`server.ts`) for the Gemini AI functionality.*

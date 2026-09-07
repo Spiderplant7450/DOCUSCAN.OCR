@@ -242,79 +242,106 @@ export default function OCRPlatform() {
     const finalName = outFileName || 'document_searchable';
     
     if (downloadFormat === 'pdf' || downloadFormat === 'html') {
-      const htmlContent = await marked(extractedText);
+      const htmlContent = await marked.parse(extractedText);
       
       const customCSS = `
-        body {
-          font-family: Barlow, sans-serif;
+        .pdf-container {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           line-height: 1.6;
           padding: 20px;
           margin: 0;
-          color: #333;
+          color: #121212;
+          background-color: #ffffff;
         }
-        pre {
-          background: #2d2d2d;
-          border-radius: 4px;
-          margin: 0.5em 0;
-          padding: 10px;
+        .pdf-container pre {
+          background: #111;
+          border-radius: 8px;
+          margin: 1em 0;
+          padding: 16px;
           color: #fff;
         }
-        code {
+        .pdf-container code {
           font-family: 'Fira Code', Consolas, Monaco, monospace;
           white-space: pre-wrap;
           word-wrap: break-word;
           overflow-wrap: anywhere;
         }
-        :not(pre)>code {
-          background: #f0f0f0;
+        .pdf-container :not(pre)>code {
+          background: rgba(0,0,0,0.05);
           padding: 2px 4px;
-          border-radius: 3px;
-          color: #e83e8c;
+          border-radius: 4px;
+          color: #FF5F1F;
         }
-        img {
+        .pdf-container img {
           max-width: 100%;
+          border-radius: 8px;
         }
-        table {
+        .pdf-container table {
           border-collapse: collapse;
           width: 100%;
-          margin: 1em 0;
+          margin: 1.5em 0;
         }
-        th, td {
-          border: 1px solid #ddd;
-          padding: 8px;
+        .pdf-container th, .pdf-container td {
+          border: 1px solid rgba(0,0,0,0.1);
+          padding: 12px;
+          text-align: left;
         }
-        th {
-          background-color: #f4f4f4;
+        .pdf-container th {
+          background-color: rgba(0,0,0,0.02);
+          font-weight: 600;
         }
-        blockquote {
-          border-left: 4px solid #ddd;
+        .pdf-container blockquote {
+          border-left: 4px solid #FF5F1F;
           padding-left: 1em;
           margin-left: 0;
           color: #666;
         }
-        h1 {
-          font-size: 2.2em;
-          color: #2c3e50;
-          border-bottom: 2px solid #eee;
+        .pdf-container h1 {
+          font-size: 2.5em;
+          font-weight: 900;
+          letter-spacing: -0.05em;
+          color: #111;
+          border-bottom: 2px solid rgba(0,0,0,0.05);
           padding-bottom: 0.5rem;
-          margin: 1.5rem 0;
+          margin: 2rem 0 1rem;
         }
-        h2 {
+        .pdf-container h2 {
           font-size: 1.8em;
-          color: #34495e;
-          margin: 1.5rem 0;
+          font-weight: 800;
+          letter-spacing: -0.03em;
+          color: #111;
+          margin: 1.5rem 0 1rem;
         }
-        h3 {
+        .pdf-container h3 {
           font-size: 1.4em;
-          color: #455a64;
+          font-weight: 700;
+          color: #333;
+        }
+        .pdf-watermark {
+          margin-top: 60px;
+          padding-top: 20px;
+          border-top: 1px solid rgba(0,0,0,0.1);
+          text-align: center;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: #FF5F1F;
+          opacity: 0.5;
         }
       `;
 
-      const fullHtml = `<!DOCTYPE html><html><head><title>${finalName}</title><style>${customCSS}</style></head><body>${htmlContent}</body></html>`;
+      const fullHtml = `
+        <div class="pdf-container">
+          <style>${customCSS}</style>
+          ${htmlContent}
+          <div class="pdf-watermark">docuscan.ocr</div>
+        </div>
+      `;
 
       if (downloadFormat === 'html') {
         const element = document.createElement("a");
-        const file = new Blob([fullHtml], {type: 'text/html'});
+        const file = new Blob([`<!DOCTYPE html><html><head><title>${finalName}</title></head><body>${fullHtml}</body></html>`], {type: 'text/html'});
         element.href = URL.createObjectURL(file);
         element.download = `${finalName}.html`;
         document.body.appendChild(element);
@@ -324,13 +351,6 @@ export default function OCRPlatform() {
       }
 
       // PDF Download via html2pdf
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = fullHtml;
-      // Append to body briefly for html2pdf to render
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.left = '-9999px';
-      document.body.appendChild(tempDiv);
-      
       const opt = {
         margin:       10,
         filename:     `${finalName}.pdf`,
@@ -339,8 +359,12 @@ export default function OCRPlatform() {
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      await html2pdf().set(opt).from(tempDiv).save();
-      document.body.removeChild(tempDiv);
+      try {
+        // Pass the HTML string directly, html2pdf will render it internally
+        await html2pdf().set(opt).from(fullHtml).save();
+      } catch (err) {
+        console.error("PDF generation failed:", err);
+      }
       return;
     }
 
@@ -421,11 +445,11 @@ export default function OCRPlatform() {
           <p className="text-lg leading-relaxed max-w-md opacity-70 mb-12">
             Transform static documents into dynamic, searchable intelligence. Open-source, secure, and precise processing entirely in your browser.
           </p>
-          <div className="flex gap-4">
-            <div onClick={() => window.open('https://tesseract.projectnaptha.com/', '_blank')} className="px-6 py-3 border border-black dark:border-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black cursor-pointer transition-colors z-10">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div onClick={() => window.open('https://tesseract.projectnaptha.com/', '_blank')} className="px-6 py-3 border border-black dark:border-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black cursor-pointer transition-colors z-10 text-center">
               Documentation
             </div>
-            <div onClick={() => window.open('https://github.com/tesseract-ocr/tesseract', '_blank')} className="px-6 py-3 bg-black text-white dark:bg-white dark:text-black rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-80 cursor-pointer transition-opacity z-10">
+            <div onClick={() => window.open('https://github.com/tesseract-ocr/tesseract', '_blank')} className="px-6 py-3 bg-black text-white dark:bg-white dark:text-black rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-80 cursor-pointer transition-opacity z-10 text-center">
               View GitHub
             </div>
           </div>
@@ -439,13 +463,13 @@ export default function OCRPlatform() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-12"
+                className="p-6 sm:p-12 w-full"
               >
                 <div
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-[60px] border-2 border-dashed border-black/10 dark:border-white/10 bg-white/40 dark:bg-white/5 flex flex-col items-center justify-center p-12 text-center group cursor-pointer hover:bg-white/80 dark:hover:bg-white/10 transition-all z-10 backdrop-blur-sm"
+                  className="aspect-square md:aspect-auto md:min-h-[400px] rounded-[40px] sm:rounded-[60px] border-2 border-dashed border-black/10 dark:border-white/10 bg-white/40 dark:bg-white/5 flex flex-col items-center justify-center p-6 sm:p-12 text-center group cursor-pointer hover:bg-white/80 dark:hover:bg-white/10 transition-all z-10 backdrop-blur-sm"
                 >
                   <input
                     type="file"
@@ -475,9 +499,9 @@ export default function OCRPlatform() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="p-16 flex flex-col items-center text-center"
+                className="p-6 sm:p-16 flex flex-col items-center text-center w-full"
               >
-                <div className="bg-white dark:bg-[#111] rounded-[40px] p-8 border border-black/5 dark:border-white/10 shadow-sm w-full h-full flex flex-col justify-center items-center aspect-square z-10 backdrop-blur-sm">
+                <div className="bg-white dark:bg-[#111] rounded-[40px] p-6 sm:p-8 border border-black/5 dark:border-white/10 shadow-sm w-full h-full flex flex-col justify-center items-center aspect-square md:aspect-auto md:min-h-[400px] z-10 backdrop-blur-sm">
                   <div className="flex justify-between items-center mb-12 w-full">
                     <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Queue Status</span>
                     <span className="flex items-center gap-2 text-[10px] font-bold text-[#FF5F1F]">
@@ -517,9 +541,9 @@ export default function OCRPlatform() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="p-16 flex flex-col items-center text-center"
+                className="p-6 sm:p-16 flex flex-col items-center text-center w-full"
               >
-                <div className="bg-white dark:bg-[#111] rounded-[40px] p-8 border border-black/5 dark:border-white/10 shadow-sm w-full h-full flex flex-col justify-center items-center aspect-square z-10 backdrop-blur-sm">
+                <div className="bg-white dark:bg-[#111] rounded-[40px] p-6 sm:p-8 border border-black/5 dark:border-white/10 shadow-sm w-full h-full flex flex-col justify-center items-center aspect-square md:aspect-auto md:min-h-[400px] z-10 backdrop-blur-sm">
                   <div className="flex justify-between items-center mb-12 w-full">
                     <span className="text-[10px] font-black uppercase tracking-widest opacity-30">AI Processing</span>
                     <span className="flex items-center gap-2 text-[10px] font-bold text-[#FF5F1F]">
@@ -551,7 +575,7 @@ export default function OCRPlatform() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white dark:bg-[#111] rounded-[40px] p-8 border border-red-500/20 shadow-sm w-full aspect-square flex flex-col items-center justify-center text-center z-10 backdrop-blur-sm"
+                className="bg-white dark:bg-[#111] rounded-[40px] p-6 sm:p-8 border border-red-500/20 shadow-sm w-full aspect-square md:aspect-auto md:min-h-[400px] flex flex-col items-center justify-center text-center z-10 backdrop-blur-sm"
               >
                 <div className="w-24 h-24 rounded-full border border-red-500 flex items-center justify-center mb-8 bg-red-50 dark:bg-red-500/10">
                   <span className="text-[#FF5F1F] text-4xl font-black">!</span>
@@ -572,7 +596,7 @@ export default function OCRPlatform() {
                 key="done"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-[#111] rounded-[40px] p-8 border border-black/5 dark:border-white/10 shadow-sm flex flex-col z-10 backdrop-blur-sm"
+                className="bg-white dark:bg-[#111] rounded-[40px] p-6 sm:p-8 border border-black/5 dark:border-white/10 shadow-sm flex flex-col z-10 backdrop-blur-sm w-full"
               >
                 <div className="flex justify-between items-center mb-10 shrink-0">
                   <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Status</span>
@@ -648,7 +672,7 @@ export default function OCRPlatform() {
                <button
                  onClick={handleCopy}
                  className={cn(
-                   "flex items-center gap-2 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all shadow-sm cursor-pointer shrink-0",
+                   "flex items-center justify-center w-full md:w-auto gap-2 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all shadow-sm cursor-pointer shrink-0",
                    copied 
                      ? "bg-green-500 text-white" 
                      : "bg-black text-white dark:bg-white dark:text-black hover:opacity-80"
@@ -665,8 +689,8 @@ export default function OCRPlatform() {
                  )}
                </button>
             </div>
-            <div className="w-full min-h-[600px] h-[70vh] rounded-[40px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#111]/80 backdrop-blur-xl overflow-hidden shadow-xl flex flex-col lg:flex-row">
-               <div className="w-full lg:w-1/2 h-full border-b lg:border-b-0 lg:border-r border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 relative">
+            <div className="w-full min-h-[800px] lg:min-h-[600px] h-[120vh] lg:h-[70vh] rounded-[40px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#111]/80 backdrop-blur-xl overflow-hidden shadow-xl flex flex-col lg:flex-row">
+               <div className="w-full lg:w-1/2 flex-1 lg:flex-none lg:h-full border-b lg:border-b-0 lg:border-r border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 relative">
                  {pdfUrl ? (
                    <iframe src={`${pdfUrl}#toolbar=0`} className="w-full h-full border-0" title="Original PDF Document" />
                  ) : (
@@ -682,11 +706,11 @@ export default function OCRPlatform() {
                    </div>
                  )}
                </div>
-               <div className="w-full lg:w-1/2 h-full p-8 lg:p-12 flex flex-col">
+               <div className="w-full lg:w-1/2 flex-1 lg:flex-none lg:h-full p-6 lg:p-12 flex flex-col">
                  <textarea
                    value={extractedText}
                    onChange={(e) => setExtractedText(e.target.value)}
-                   className="w-full h-full bg-transparent resize-none outline-none font-mono text-sm leading-loose text-[#121212] dark:text-[#F2F1EE]"
+                   className="w-full h-full bg-transparent resize-none outline-none font-mono text-xs sm:text-sm leading-loose text-[#121212] dark:text-[#F2F1EE]"
                  />
                </div>
             </div>

@@ -1,6 +1,6 @@
 {
   "name": "DocuScan OCR",
-  "description": "A modern, open-source PDF OCR platform powered by Tesseract.",
+  "description": "A high-performance PDF OCR platform powered by Tesseract and Gemini AI. Features side-by-side interactive editing, automatic layout preservation, and styled Markdown/PDF exporting.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
