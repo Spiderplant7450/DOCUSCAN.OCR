@@ -124,7 +124,7 @@ export default function OCRPlatform() {
       numPagesRef.current = numPages;
 
       // 2. Initialize Tesseract Scheduler and Workers
-      const numWorkers = Math.min(4, navigator.hardwareConcurrency || 4);
+      const numWorkers = 10; // Process 10 pages at once for maximum speed
       setProgressMsg(`Warming up ${numWorkers} parallel OCR engines...`);
       setProgressPct(0);
       
@@ -603,7 +603,7 @@ export default function OCRPlatform() {
           </div>
         </div>
         <div className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-30">
-          © 2024 Lens Digital Intelligence
+          © 2026 Lens Digital Intelligence
         </div>
       </footer>
     </div>
