@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { UploadCloud, FileText, CheckCircle, Loader2, Download, RefreshCcw, Moon, Sun } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, Loader2, Download, RefreshCcw, Moon, Sun, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as pdfjsLib from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
@@ -85,6 +85,7 @@ export default function OCRPlatform() {
   const [outFileName, setOutFileName] = useState<string>('');
   const [downloadFormat, setDownloadFormat] = useState<'pdf' | 'md' | 'txt' | 'html'>('pdf');
   const [isDark, setIsDark] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const numPagesRef = useRef(1);
@@ -280,7 +281,18 @@ export default function OCRPlatform() {
     setOutFileName('');
     setProgressMsg('');
     setProgressPct(0);
+    setCopied(false);
   };
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(extractedText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text', err);
+    }
+  }, [extractedText]);
 
   return (
     <div className="min-h-screen bg-[#F2F1EE] text-[#121212] dark:bg-[#0a0a0a] dark:text-[#F2F1EE] font-sans selection:bg-[#FF5F1F]/20 p-6 md:p-12 relative overflow-hidden flex flex-col box-border transition-colors duration-500">
@@ -387,7 +399,7 @@ export default function OCRPlatform() {
                   <div className="relative mb-8">
                     <div className="w-24 h-24 border-2 border-dashed border-black/20 dark:border-white/20 rounded-full"></div>
                     <motion.div 
-                      className="w-24 h-24 border-2 border-black dark:border-white rounded-full absolute top-0 left-0 border-t-transparent border-l-transparent border-r-transparent"
+                      className="w-24 h-24 border-2 border-transparent border-b-black dark:border-b-white rounded-full absolute top-0 left-0"
                       animate={{ rotate: 360 }}
                       transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
                     />
@@ -429,7 +441,7 @@ export default function OCRPlatform() {
                   <div className="relative mb-8">
                     <div className="w-24 h-24 border-2 border-dashed border-[#FF5F1F]/20 rounded-full"></div>
                     <motion.div 
-                      className="w-24 h-24 border-2 border-[#FF5F1F] rounded-full absolute top-0 left-0 border-t-transparent border-l-transparent border-r-transparent"
+                      className="w-24 h-24 border-2 border-transparent border-b-[#FF5F1F] rounded-full absolute top-0 left-0"
                       animate={{ rotate: -360 }}
                       transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
                     />
@@ -471,70 +483,60 @@ export default function OCRPlatform() {
                 key="done"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-[#111] rounded-[40px] p-6 md:p-8 border border-black/5 dark:border-white/10 shadow-sm flex flex-col flex-1 min-h-[500px] h-full z-10 backdrop-blur-sm"
+                className="bg-white dark:bg-[#111] rounded-[40px] p-8 border border-black/5 dark:border-white/10 shadow-sm flex flex-col z-10 backdrop-blur-sm"
               >
-                <div className="flex justify-between items-center mb-6 shrink-0">
-                  <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Result</span>
+                <div className="flex justify-between items-center mb-10 shrink-0">
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Status</span>
                   <div className="flex items-center gap-4">
                     <span className="flex items-center gap-2 text-[10px] font-bold text-green-600 dark:text-green-400">
-                      <span className="w-1.5 h-1.5 bg-green-600 dark:bg-green-400 rounded-full"></span> Done
+                      <span className="w-1.5 h-1.5 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></span> Complete
                     </span>
                     <button onClick={reset} className="text-[10px] font-bold border-b border-black dark:border-white hover:opacity-50 uppercase tracking-widest cursor-pointer shrink-0">
-                      New
+                      New File
                     </button>
                   </div>
                 </div>
-                
-                <div className="flex items-start sm:items-center justify-between mb-6 pb-6 border-b border-black/10 dark:border-white/10 flex-col sm:flex-row gap-4 shrink-0">
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="w-8 h-8 bg-[#F2F1EE] dark:bg-white/10 rounded flex items-center justify-center text-[10px] font-bold shrink-0">01</div>
-                    <div className="text-xs min-w-0">
-                      <div className="font-bold truncate w-full sm:max-w-[200px]">{fileName}</div>
-                      <div className="opacity-40 text-[9px]">OCR & AI Cleaned</div>
-                    </div>
+
+                <div className="flex items-center gap-4 mb-8 pb-8 border-b border-black/10 dark:border-white/10">
+                  <div className="w-12 h-12 bg-[#F2F1EE] dark:bg-white/10 rounded-xl flex items-center justify-center font-bold text-[#FF5F1F] shrink-0">
+                     <FileText className="w-6 h-6" />
                   </div>
-                  
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                    <div className="flex bg-[#F2F1EE] dark:bg-[#0a0a0a] rounded border border-black/10 dark:border-white/10 overflow-hidden w-full sm:w-auto">
-                      <input 
-                        type="text" 
-                        value={outFileName} 
-                        onChange={(e) => setOutFileName(e.target.value)}
-                        className="bg-transparent px-3 py-1.5 text-xs font-bold outline-none w-full sm:w-32 md:w-48 text-[#121212] dark:text-[#F2F1EE]"
-                        placeholder="Filename"
-                      />
-                      <select 
-                        value={downloadFormat}
-                        onChange={(e) => setDownloadFormat(e.target.value as any)}
-                        className="bg-black/5 dark:bg-white/10 px-2 py-1.5 text-xs font-bold outline-none border-l border-black/10 dark:border-white/10 text-[#121212] dark:text-[#F2F1EE] cursor-pointer shrink-0"
-                      >
-                        <option value="pdf" className="dark:bg-[#111]">.PDF</option>
-                        <option value="md" className="dark:bg-[#111]">.MD</option>
-                        <option value="txt" className="dark:bg-[#111]">.TXT</option>
-                        <option value="html" className="dark:bg-[#111]">.HTML</option>
-                      </select>
-                    </div>
-                    <button onClick={handleDownload} className="text-[10px] font-bold border-b border-[#FF5F1F] text-[#FF5F1F] cursor-pointer hover:opacity-50 shrink-0 text-center py-1 sm:py-0">
-                      DOWNLOAD
-                    </button>
+                  <div className="flex flex-col min-w-0">
+                     <span className="font-black text-lg truncate w-full">{fileName}</span>
+                     <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">OCR + AI Enhanced</span>
                   </div>
                 </div>
-                
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-2 shrink-0">OCR Result Preview</span>
-                <div className="flex-1 min-h-0 relative group">
-                  <textarea
-                    readOnly
-                    value={extractedText}
-                    className="w-full h-full p-4 bg-[#F2F1EE]/50 dark:bg-[#0a0a0a]/50 border border-black/5 dark:border-white/5 rounded-2xl resize-none focus:outline-none focus:ring-1 focus:ring-black/10 dark:focus:ring-white/10 font-mono text-[11px] sm:text-xs leading-relaxed text-[#121212] dark:text-[#F2F1EE]"
-                  />
-                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => navigator.clipboard.writeText(extractedText)}
-                      className="px-3 py-1.5 bg-black text-white dark:bg-white dark:text-black rounded text-[10px] font-bold uppercase tracking-widest hover:opacity-80 transition-opacity shadow-sm cursor-pointer"
-                    >
-                      Copy
-                    </button>
+
+                <div className="flex flex-col gap-5 w-full">
+                  <div className="flex flex-col gap-2">
+                     <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Export Filename</label>
+                     <input
+                       type="text"
+                       value={outFileName}
+                       onChange={(e) => setOutFileName(e.target.value)}
+                       className="bg-black/5 dark:bg-white/5 px-4 py-3 rounded-xl text-sm font-bold outline-none text-[#121212] dark:text-[#F2F1EE] focus:ring-1 focus:ring-[#FF5F1F] transition-shadow"
+                       placeholder="Filename"
+                     />
                   </div>
+                  <div className="flex flex-col gap-2">
+                     <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Export Format</label>
+                     <select
+                       value={downloadFormat}
+                       onChange={(e) => setDownloadFormat(e.target.value as any)}
+                       className="bg-black/5 dark:bg-white/5 px-4 py-3 rounded-xl text-sm font-bold outline-none text-[#121212] dark:text-[#F2F1EE] focus:ring-1 focus:ring-[#FF5F1F] cursor-pointer transition-shadow"
+                     >
+                        <option value="pdf" className="dark:bg-[#111]">.PDF Document</option>
+                        <option value="md" className="dark:bg-[#111]">.MD Markdown</option>
+                        <option value="txt" className="dark:bg-[#111]">.TXT Plain Text</option>
+                        <option value="html" className="dark:bg-[#111]">.HTML Web Page</option>
+                     </select>
+                  </div>
+                  <button onClick={handleDownload} className="w-full py-4 mt-2 bg-[#FF5F1F] text-white rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity">
+                     Download File
+                  </button>
+                  <button onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })} className="w-full py-4 bg-transparent text-black dark:text-white border border-black/10 dark:border-white/10 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                     View Preview ↓
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -542,7 +544,50 @@ export default function OCRPlatform() {
         </main>
       </div>
 
-      <footer className="flex justify-between items-end pt-8 border-t border-black/5 dark:border-white/5 relative z-10 max-w-7xl mx-auto w-full mt-auto">
+      <AnimatePresence>
+        {status === 'done' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-7xl mx-auto px-6 lg:px-12 mt-16 mb-24 relative z-10"
+          >
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-6">
+               <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-40 text-[#FF5F1F] mb-2 block">Extracted Output</span>
+                  <h2 className="text-4xl md:text-5xl font-black tracking-tighter">Document Preview</h2>
+               </div>
+               <button
+                 onClick={handleCopy}
+                 className={cn(
+                   "flex items-center gap-2 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all shadow-sm cursor-pointer shrink-0",
+                   copied 
+                     ? "bg-green-500 text-white" 
+                     : "bg-black text-white dark:bg-white dark:text-black hover:opacity-80"
+                 )}
+               >
+                 {copied ? (
+                   <>
+                     <Check className="w-4 h-4" /> Copied!
+                   </>
+                 ) : (
+                   <>
+                     <Copy className="w-4 h-4" /> Copy to Clipboard
+                   </>
+                 )}
+               </button>
+            </div>
+            <div className="w-full min-h-[600px] h-[70vh] rounded-[40px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#111]/80 backdrop-blur-xl p-8 lg:p-12 shadow-xl flex flex-col">
+               <textarea
+                 readOnly
+                 value={extractedText}
+                 className="w-full h-full bg-transparent resize-none outline-none font-mono text-sm leading-loose text-[#121212] dark:text-[#F2F1EE]"
+               />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <footer className="flex justify-between items-end px-6 lg:px-12 pt-8 pb-12 border-t border-black/5 dark:border-white/5 relative z-10 max-w-7xl mx-auto w-full mt-auto">
         <div className="hidden md:flex gap-12">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Accuracy</span>
