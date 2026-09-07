@@ -1,10 +1,12 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { UploadCloud, FileText, CheckCircle, Loader2, Download, RefreshCcw, Moon, Sun, Copy, Check } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, Loader2, Download, RefreshCcw, Moon, Sun, Copy, Check, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as pdfjsLib from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
 import { jsPDF } from 'jspdf';
 import { cn } from '../lib/utils';
+import { marked } from 'marked';
+import html2pdf from 'html2pdf.js';
 
 // Configure the PDF.js worker using a reliable CDN approach.
 // This is required to decode PDFs in the browser.
@@ -86,6 +88,8 @@ export default function OCRPlatform() {
   const [downloadFormat, setDownloadFormat] = useState<'pdf' | 'md' | 'txt' | 'html'>('pdf');
   const [isDark, setIsDark] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pageImages, setPageImages] = useState<string[]>([]);
+  const [pdfUrl, setPdfUrl] = useState<string>('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const numPagesRef = useRef(1);
@@ -113,6 +117,7 @@ export default function OCRPlatform() {
     setProgressMsg('Initializing PDF parsing...');
     setProgressPct(0);
     setExtractedText('');
+    setPdfUrl(URL.createObjectURL(file));
 
     let scheduler: Tesseract.Scheduler | null = null;
 
@@ -135,7 +140,7 @@ export default function OCRPlatform() {
       }
 
       let completedPages = 0;
-      const results: { pageNum: number, text: string }[] = [];
+      const results: { pageNum: number, text: string, imageUrl: string }[] = [];
       const pageQueue = Array.from({ length: numPages }, (_, i) => i + 1);
 
       const processPage = async (pageNum: number) => {
@@ -151,7 +156,7 @@ export default function OCRPlatform() {
         if (!context) throw new Error('Could not create canvas context');
 
         await page.render({ canvasContext: context, viewport } as any).promise;
-        const dataUrl = canvas.toDataURL('image/png');
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         page.cleanup?.();
 
         const { data: { text } } = await scheduler!.addJob('recognize', dataUrl);
@@ -160,7 +165,7 @@ export default function OCRPlatform() {
         setProgressPct(Math.round((completedPages / numPages) * 100));
         setProgressMsg(`Processed ${completedPages} of ${numPages} pages...`);
         
-        results.push({ pageNum, text });
+        results.push({ pageNum, text, imageUrl: dataUrl });
       };
 
       // 3. Process pages using a concurrent worker pool
@@ -176,6 +181,7 @@ export default function OCRPlatform() {
       await Promise.all(workersArray);
       
       results.sort((a, b) => a.pageNum - b.pageNum);
+      setPageImages(results.map(r => r.imageUrl));
       let finalFullText = results.map(r => `\n\n--- Page ${r.pageNum} ---\n\n${r.text}`).join('').trim();
 
       // 4. AI Cleanup Step
@@ -232,25 +238,113 @@ export default function OCRPlatform() {
     e.stopPropagation();
   }, []);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const finalName = outFileName || 'document_searchable';
     
-    if (downloadFormat === 'pdf') {
-      const doc = new jsPDF();
-      const splitText = doc.splitTextToSize(extractedText, 180);
-      let y = 15;
-      for (let i = 0; i < splitText.length; i++) {
-        if (y > 280) {
-          doc.addPage();
-          y = 15;
+    if (downloadFormat === 'pdf' || downloadFormat === 'html') {
+      const htmlContent = await marked(extractedText);
+      
+      const customCSS = `
+        body {
+          font-family: Barlow, sans-serif;
+          line-height: 1.6;
+          padding: 20px;
+          margin: 0;
+          color: #333;
         }
-        doc.text(splitText[i], 15, y);
-        y += 7;
+        pre {
+          background: #2d2d2d;
+          border-radius: 4px;
+          margin: 0.5em 0;
+          padding: 10px;
+          color: #fff;
+        }
+        code {
+          font-family: 'Fira Code', Consolas, Monaco, monospace;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          overflow-wrap: anywhere;
+        }
+        :not(pre)>code {
+          background: #f0f0f0;
+          padding: 2px 4px;
+          border-radius: 3px;
+          color: #e83e8c;
+        }
+        img {
+          max-width: 100%;
+        }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 1em 0;
+        }
+        th, td {
+          border: 1px solid #ddd;
+          padding: 8px;
+        }
+        th {
+          background-color: #f4f4f4;
+        }
+        blockquote {
+          border-left: 4px solid #ddd;
+          padding-left: 1em;
+          margin-left: 0;
+          color: #666;
+        }
+        h1 {
+          font-size: 2.2em;
+          color: #2c3e50;
+          border-bottom: 2px solid #eee;
+          padding-bottom: 0.5rem;
+          margin: 1.5rem 0;
+        }
+        h2 {
+          font-size: 1.8em;
+          color: #34495e;
+          margin: 1.5rem 0;
+        }
+        h3 {
+          font-size: 1.4em;
+          color: #455a64;
+        }
+      `;
+
+      const fullHtml = `<!DOCTYPE html><html><head><title>${finalName}</title><style>${customCSS}</style></head><body>${htmlContent}</body></html>`;
+
+      if (downloadFormat === 'html') {
+        const element = document.createElement("a");
+        const file = new Blob([fullHtml], {type: 'text/html'});
+        element.href = URL.createObjectURL(file);
+        element.download = `${finalName}.html`;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+        return;
       }
-      doc.save(`${finalName}.pdf`);
+
+      // PDF Download via html2pdf
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = fullHtml;
+      // Append to body briefly for html2pdf to render
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      document.body.appendChild(tempDiv);
+      
+      const opt = {
+        margin:       10,
+        filename:     `${finalName}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(tempDiv).save();
+      document.body.removeChild(tempDiv);
       return;
     }
 
+    // Markdown or TXT
     let content = extractedText;
     let mime = 'text/plain';
     let ext = '.txt';
@@ -258,18 +352,13 @@ export default function OCRPlatform() {
     if (downloadFormat === 'md') {
       mime = 'text/markdown';
       ext = '.md';
-      content = `# OCR Extraction\n\n${extractedText}`;
-    } else if (downloadFormat === 'html') {
-      mime = 'text/html';
-      ext = '.html';
-      content = `<!DOCTYPE html><html><head><title>${finalName}</title></head><body><pre>${extractedText}</pre></body></html>`;
     }
 
     const element = document.createElement("a");
     const file = new Blob([content], {type: mime});
     element.href = URL.createObjectURL(file);
     element.download = `${finalName}${ext}`;
-    document.body.appendChild(element); // Required for this to work in FireFox
+    document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
   };
@@ -446,7 +535,7 @@ export default function OCRPlatform() {
                       transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
                     />
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-2xl">✨</span>
+                      <Sparkles className="w-6 h-6 text-[#FF5F1F]" />
                     </div>
                   </div>
                   
@@ -576,12 +665,30 @@ export default function OCRPlatform() {
                  )}
                </button>
             </div>
-            <div className="w-full min-h-[600px] h-[70vh] rounded-[40px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#111]/80 backdrop-blur-xl p-8 lg:p-12 shadow-xl flex flex-col">
-               <textarea
-                 readOnly
-                 value={extractedText}
-                 className="w-full h-full bg-transparent resize-none outline-none font-mono text-sm leading-loose text-[#121212] dark:text-[#F2F1EE]"
-               />
+            <div className="w-full min-h-[600px] h-[70vh] rounded-[40px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-[#111]/80 backdrop-blur-xl overflow-hidden shadow-xl flex flex-col lg:flex-row">
+               <div className="w-full lg:w-1/2 h-full border-b lg:border-b-0 lg:border-r border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 relative">
+                 {pdfUrl ? (
+                   <iframe src={`${pdfUrl}#toolbar=0`} className="w-full h-full border-0" title="Original PDF Document" />
+                 ) : (
+                   <div className="w-full h-full flex flex-col gap-8 items-center p-8 overflow-y-auto">
+                     {pageImages.map((imgUrl, idx) => (
+                       <div key={idx} className="w-full relative shadow-md rounded-xl overflow-hidden border border-black/10 dark:border-white/10">
+                         <div className="absolute top-2 left-2 bg-black/50 text-white backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold z-10">
+                           Page {idx + 1}
+                         </div>
+                         <img src={imgUrl} alt={`Original Page ${idx + 1}`} className="w-full h-auto block" />
+                       </div>
+                     ))}
+                   </div>
+                 )}
+               </div>
+               <div className="w-full lg:w-1/2 h-full p-8 lg:p-12 flex flex-col">
+                 <textarea
+                   value={extractedText}
+                   onChange={(e) => setExtractedText(e.target.value)}
+                   className="w-full h-full bg-transparent resize-none outline-none font-mono text-sm leading-loose text-[#121212] dark:text-[#F2F1EE]"
+                 />
+               </div>
             </div>
           </motion.div>
         )}
